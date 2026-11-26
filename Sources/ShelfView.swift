@@ -55,9 +55,9 @@ struct ShelfView: View {
         .frame(width: PanelLayout.width)
         .background(Color(nsColor: .windowBackgroundColor))
         .onAppear { relay.relayout() }
-        .onChange(of: store.visibleCount) { _, _ in relay.relayout() }
-        .onChange(of: store.items.count) { _, _ in relay.relayout() }
-        .onChange(of: store.blockedMessage) { _, _ in relay.relayout() }
+        .onChange(of: store.visibleCount) { _, _ in scheduleRelayout() }
+        .onChange(of: store.items.count) { _, _ in scheduleRelayout() }
+        .onChange(of: store.blockedMessage) { _, _ in scheduleRelayout() }
     }
 
     private var header: some View {
@@ -201,6 +201,10 @@ struct ShelfView: View {
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .center)
         }
+    }
+
+    private func scheduleRelayout() {
+        DispatchQueue.main.async { relay.relayout() }
     }
 
     private func openPreview(_ url: URL?) {

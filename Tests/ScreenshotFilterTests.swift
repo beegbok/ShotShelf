@@ -85,6 +85,14 @@ enum ScreenshotFilterTests {
         let shifted = PanelGeometry.placed(anchor: anchor, size: size, visible: visible, blockers: [blocker])
         assert(!shifted.insetBy(dx: -8, dy: -8).intersects(blocker))
         assert(visible.contains(shifted))
+
+        let before = CGRect(x: 40, y: 200, width: 372, height: 420)
+        let taller = PanelGeometry.resized(keepingTopOf: before, to: CGSize(width: 372, height: 640))
+        assert(abs(taller.maxY - before.maxY) < 0.1)
+        assert(abs(taller.height - 640) < 0.1)
+        let shorter = PanelGeometry.resized(keepingTopOf: taller, to: CGSize(width: 372, height: 300))
+        assert(abs(shorter.maxY - before.maxY) < 0.1)
+        assert(abs(shorter.height - 300) < 0.1)
     }
 
     private static func write(_ name: String, modified: Date, in directory: URL) {

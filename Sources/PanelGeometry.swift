@@ -1,6 +1,11 @@
 import CoreGraphics
 
 enum PanelGeometry {
+    /// Grow or shrink downward so the top edge, where the count control sits, stays under the pointer.
+    static func resized(keepingTopOf frame: CGRect, to size: CGSize) -> CGRect {
+        CGRect(x: frame.origin.x, y: frame.maxY - size.height, width: size.width, height: size.height)
+    }
+
     static func placed(anchor: CGRect, size: CGSize, visible: CGRect, blockers: [CGRect]) -> CGRect {
         let proposed = CGRect(
             x: anchor.midX - size.width / 2,

@@ -89,6 +89,9 @@ final class StatusBarController: NSObject, NSApplicationDelegate {
         panel.isReleasedWhenClosed = false
         panel.titleVisibility = .hidden
         panel.titlebarAppearsTransparent = true
+        if let hostingView = hosting.view as? NSHostingView<ShelfView> {
+            hostingView.sizingOptions = []
+        }
         hosting.view.wantsLayer = true
         hosting.view.layer?.cornerRadius = 16
         hosting.view.layer?.masksToBounds = true
@@ -108,8 +111,12 @@ final class StatusBarController: NSObject, NSApplicationDelegate {
             self.closePanel()
             return nil
         }
-        let mask: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown]
+        let mask: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown, .leftMouseUp, .rightMouseUp]
         localClickMonitor = NSEvent.addLocalMonitorForEvents(matching: mask) { [weak self] event in
+            if event.type == .leftMouseUp || event.type == .rightMouseUp {
+                if self?.panel.isVisible == true { self?.placePanel() }
+                return event
+            }
             self?.closeIfClickOutside()
             return event
         }
@@ -153,14 +160,12 @@ final class StatusBarController: NSObject, NSApplicationDelegate {
     }
 
     private func relayout() {
-        hosting.view.layoutSubtreeIfNeeded()
-        let fit = hosting.view.fittingSize
-        let fallback = PanelLayout.size(for: store)
-        let height = (fit.height > 180 && fit.height < 920) ? fit.height : fallback.height
-        let size = NSSize(width: PanelLayout.width, height: height)
+        let size = PanelLayout.size(for: store)
+        let frame = PanelGeometry.resized(keepingTopOf: panel.frame, to: size)
         hosting.view.frame = NSRect(origin: .zero, size: size)
-        panel.setFrame(NSRect(origin: panel.frame.origin, size: size), display: true)
-        if panel.isVisible { placePanel() }
+        panel.setFrame(frame, display: true)
+        guard panel.isVisible, NSEvent.pressedMouseButtons == 0 else { return }
+        placePanel()
     }
 
     @objc private func statusItemClicked() {
