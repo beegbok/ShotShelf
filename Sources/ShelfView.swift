@@ -20,7 +20,7 @@ enum PanelLayout {
 
     private static func height(for store: ScreenshotStore) -> CGFloat {
         let grid = gridHeight(for: store)
-        return 12 + 78 + 8 + grid + 8 + 124 + 12
+        return 12 + 78 + 8 + grid + 8 + 164 + 12
     }
 
     private static func gridHeight(for store: ScreenshotStore) -> CGFloat {
@@ -155,6 +155,28 @@ struct ShelfView: View {
                 get: { store.loginEnabled },
                 set: { store.setLaunchAtLogin($0) }
             ))
+            HStack(spacing: 8) {
+                Text("Trash after")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize()
+                Picker("Trash after", selection: Binding(
+                    get: { store.purgeWindow },
+                    set: { window in
+                        relay.suspendAutoClose()
+                        store.proposePurge(window) { relay.resumeAutoClose(false) }
+                    }
+                )) {
+                    ForEach(PurgeWindow.allCases) { window in
+                        Text(window.title).tag(window)
+                    }
+                }
+                .id(store.purgeRevision)
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .controlSize(.small)
+                .accessibilityLabel("Trash screenshots after")
+            }
             HStack {
                 Button(store.folderButtonTitle) { store.openFolder() }
                 Spacer()
@@ -163,7 +185,7 @@ struct ShelfView: View {
             .buttonStyle(.borderless)
             .font(.caption)
             .foregroundStyle(.secondary)
-            Text("Created by DLP")
+            Text("Created by DLProjects")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .center)

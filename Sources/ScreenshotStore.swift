@@ -37,6 +37,15 @@ final class ScreenshotStore {
         didSet { UserDefaults.standard.set(autoCopy, forKey: Key.autoCopy) }
     }
 
+    var purgeWindow: PurgeWindow = .off {
+        didSet {
+            guard purgeWindow != oldValue else { return }
+            UserDefaults.standard.set(purgeWindow.rawValue, forKey: Key.purgeWindow)
+            if primed { scan() }
+        }
+    }
+
+    private(set) var purgeRevision = 0
     var onIconChange: ((String) -> Void)?
 
     var visibleItems: [ScreenshotItem] {
@@ -72,6 +81,7 @@ final class ScreenshotStore {
         if defaults.object(forKey: Key.autoCopy) != nil {
             autoCopy = defaults.bool(forKey: Key.autoCopy)
         }
+        purgeWindow = PurgeWindow(rawValue: defaults.integer(forKey: Key.purgeWindow)) ?? .off
     }
 
     func start() {
@@ -92,9 +102,10 @@ final class ScreenshotStore {
             totalCount = 0
         case .ready(let found):
             blockedMessage = nil
-            totalCount = found.count
-            items = found.prefix(30).map(makeItem)
-            consume(found)
+            let kept = withoutExpired(found)
+            totalCount = kept.count
+            items = kept.prefix(30).map(makeItem)
+            consume(kept)
         }
         logStartIfNeeded()
     }
@@ -107,6 +118,32 @@ final class ScreenshotStore {
             let payload = await Self.loadPayload(url)
             guard let self, !Task.isCancelled else { return }
             self.write(payload, automatic: false, token: token)
+        }
+    }
+
+    func proposePurge(_ window: PurgeWindow, finished: @escaping () -> Void = {}) {
+        guard window != purgeWindow else {
+            finished()
+            return
+        }
+        guard purgeWindow.requiresConfirmation(to: window) else {
+            purgeWindow = window
+            finished()
+            return
+        }
+        let alert = purgeAlert(window)
+        let host = NSApp.windows.first { $0 is NSPanel && $0.isVisible } ?? NSApp.keyWindow
+        guard let host else {
+            let accepted = alert.runModal() == .alertFirstButtonReturn
+            applyPurge(window, accepted: accepted)
+            finished()
+            return
+        }
+        alert.beginSheetModal(for: host) { [weak self] response in
+            Task { @MainActor in
+                self?.applyPurge(window, accepted: response == .alertFirstButtonReturn)
+                finished()
+            }
         }
     }
 
@@ -269,6 +306,65 @@ final class ScreenshotStore {
         loginEnabled = SMAppService.mainApp.status == .enabled
     }
 
+    private func applyPurge(_ window: PurgeWindow, accepted: Bool) {
+        if accepted {
+            purgeWindow = window
+        } else {
+            purgeRevision += 1
+        }
+    }
+
+    private func purgeAlert(_ window: PurgeWindow) -> NSAlert {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Trash screenshots after \(window.phrase)?"
+        alert.informativeText = confirmDetail(count: pendingPurgeCount(window), window: window)
+        alert.addButton(withTitle: "Move to Trash")
+        alert.addButton(withTitle: "Cancel")
+        return alert
+    }
+
+    private func confirmDetail(count: Int, window: PurgeWindow) -> String {
+        switch count {
+        case 0:
+            return "Nothing is old enough yet. New screenshots will be moved to the Trash after \(window.phrase)."
+        case 1:
+            return "1 screenshot older than \(window.phrase) will be moved to the Trash. New ones will follow."
+        default:
+            return "\(count) screenshots older than \(window.phrase) will be moved to the Trash. New ones will follow."
+        }
+    }
+
+    private func pendingPurgeCount(_ window: PurgeWindow) -> Int {
+        guard case .ready(let found) = ScreenshotFilter.load(
+            directory: folderURL,
+            prefix: ScreenshotLocation.prefix()
+        ) else { return 0 }
+        return ScreenshotFilter.expired(files: found, now: Date(), maxAge: window.maxAge).count
+    }
+
+    private func withoutExpired(_ found: [ScreenshotFile]) -> [ScreenshotFile] {
+        let expired = ScreenshotFilter.expired(files: found, now: Date(), maxAge: purgeWindow.maxAge)
+        guard !expired.isEmpty else { return found }
+        var removed: Set<String> = []
+        for file in expired {
+            let url = fileURL(file)
+            if url == inFlightURL { continue }
+            do {
+                try FileManager.default.trashItem(at: url, resultingItemURL: nil)
+                handled.removeValue(forKey: url)
+                removed.insert(file.name)
+            } catch {
+                fail("Couldn't move \(file.name) to Trash")
+            }
+        }
+        if !removed.isEmpty {
+            let noun = removed.count == 1 ? "screenshot" : "screenshots"
+            fputs("ShotShelf moved \(removed.count) \(noun) to Trash\n", stderr)
+        }
+        return found.filter { !removed.contains($0.name) }
+    }
+
     private func prune(_ found: [ScreenshotFile]) {
         let live = Set(found.map(fileURL))
         handled = handled.filter { live.contains($0.key) }
@@ -317,6 +413,7 @@ final class ScreenshotStore {
         static let count = "visibleCount"
         static let autoCopy = "autoCopy"
         static let loginItemSet = "loginItemSet"
+        static let purgeWindow = "purgeWindow"
     }
 }
 

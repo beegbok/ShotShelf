@@ -45,6 +45,25 @@ enum ScreenshotFilterTests {
         assert(ScreenshotFilter.shouldAutoCopy(modifiedAt: now.addingTimeInterval(1), now: now, maxAge: 45))
         assert(!ScreenshotFilter.shouldAutoCopy(modifiedAt: now.addingTimeInterval(5), now: now, maxAge: 45))
 
+        let purgeNow = Date(timeIntervalSince1970: 10_000)
+        let purgeFiles = [
+            ScreenshotFile(name: "Screenshot new.png", modifiedAt: purgeNow.addingTimeInterval(-60)),
+            ScreenshotFile(name: "Screenshot half.png", modifiedAt: purgeNow.addingTimeInterval(-1_800)),
+            ScreenshotFile(name: "Screenshot old.png", modifiedAt: purgeNow.addingTimeInterval(-1_801)),
+            ScreenshotFile(name: "Screenshot future.png", modifiedAt: purgeNow.addingTimeInterval(30)),
+        ]
+        assert(ScreenshotFilter.expired(files: purgeFiles, now: purgeNow, maxAge: PurgeWindow.off.maxAge).isEmpty)
+        assert(ScreenshotFilter.expired(files: purgeFiles, now: purgeNow, maxAge: PurgeWindow.thirtyMinutes.maxAge).map(\.name) == [
+            "Screenshot half.png",
+            "Screenshot old.png",
+        ])
+        assert(ScreenshotFilter.expired(files: purgeFiles, now: purgeNow, maxAge: PurgeWindow.sixHours.maxAge).isEmpty)
+        assert(PurgeWindow.off.requiresConfirmation(to: .thirtyMinutes))
+        assert(!PurgeWindow.thirtyMinutes.requiresConfirmation(to: .off))
+        assert(!PurgeWindow.thirtyMinutes.requiresConfirmation(to: .sixHours))
+        assert(PurgeWindow.sixHours.requiresConfirmation(to: .thirtyMinutes))
+        assert(!PurgeWindow.oneHour.requiresConfirmation(to: .oneHour))
+
         let missing = directory.appendingPathComponent("missing")
         guard case .blocked = ScreenshotFilter.load(directory: missing, prefix: "Screenshot") else {
             fatalError("missing folder should be blocked")

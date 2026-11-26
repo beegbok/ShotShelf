@@ -2,7 +2,7 @@
 
 A menu-bar shelf of your recent screenshots. Click one to copy it, or drag it into another app. New screenshots can land on the clipboard on their own.
 
-Created by DLP.
+Created by DLProjects.
 
 ## Download
 

@@ -10,6 +10,42 @@ enum ScreenshotCatalog: Equatable {
     case blocked(String)
 }
 
+enum PurgeWindow: Int, CaseIterable, Identifiable {
+    case off = 0
+    case thirtyMinutes = 1_800
+    case oneHour = 3_600
+    case sixHours = 21_600
+
+    var id: Int { rawValue }
+
+    var title: String {
+        switch self {
+        case .off: "Off"
+        case .thirtyMinutes: "30m"
+        case .oneHour: "1h"
+        case .sixHours: "6h"
+        }
+    }
+
+    var phrase: String {
+        switch self {
+        case .off: "off"
+        case .thirtyMinutes: "30 minutes"
+        case .oneHour: "1 hour"
+        case .sixHours: "6 hours"
+        }
+    }
+
+    var maxAge: TimeInterval { TimeInterval(rawValue) }
+
+    /// Turning purge on, or making it sooner, trashes screenshots that are already sitting there.
+    func requiresConfirmation(to next: PurgeWindow) -> Bool {
+        guard next != self, next != .off else { return false }
+        if self == .off { return true }
+        return next.maxAge < maxAge
+    }
+}
+
 enum ScreenshotFilter {
     static let autoCopyMaxAge: TimeInterval = 45
     static let imageExtensions: Set<String> = ["png", "jpg", "jpeg", "heic", "tif", "tiff"]
@@ -21,6 +57,12 @@ enum ScreenshotFilter {
         if !prefix.isEmpty, hasBoundaryPrefix(base, prefix: prefix) { return true }
         if hasBoundaryPrefix(base, prefix: "Screenshot") { return true }
         return hasBoundaryPrefix(base, prefix: "Screen Shot")
+    }
+
+    /// Screenshots older than `maxAge`. Zero means purging is off. A file dated in the future stays.
+    static func expired(files: [ScreenshotFile], now: Date, maxAge: TimeInterval) -> [ScreenshotFile] {
+        guard maxAge > 0 else { return [] }
+        return files.filter { now.timeIntervalSince($0.modifiedAt) >= maxAge }
     }
 
     /// A file is worth auto-copying when it was just written, allowing a little clock skew.
