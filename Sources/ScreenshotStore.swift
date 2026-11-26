@@ -28,6 +28,7 @@ final class ScreenshotStore {
     private(set) var statusLine = idleStatus
     private(set) var copiedURL: URL?
     var hoveredURL: URL?
+    var selectedURL: URL?
     private(set) var loginEnabled = false
 
     var visibleCount: Int = 6 {
@@ -164,6 +165,34 @@ final class ScreenshotStore {
             NSWorkspace.shared.open(target)
         }
         return true
+    }
+
+    func closePreviewDocument(at url: URL) {
+        let path = Self.scriptLiteral(url.path)
+        let name = Self.scriptLiteral(url.lastPathComponent)
+        let stem = Self.scriptLiteral((url.lastPathComponent as NSString).deletingPathExtension)
+        let source = """
+        tell application "Preview"
+            repeat with doc in documents
+                try
+                    set docName to name of doc
+                    set docPath to POSIX path of (path of doc)
+                    if docPath is \(path) or docName is \(name) or docName is \(stem) then
+                        close doc saving no
+                    end if
+                end try
+            end repeat
+        end tell
+        """
+        var error: NSDictionary?
+        NSAppleScript(source: source)?.executeAndReturnError(&error)
+    }
+
+    private static func scriptLiteral(_ value: String) -> String {
+        let escaped = value
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        return "\"\(escaped)\""
     }
 
     func openPrivacySettings() {

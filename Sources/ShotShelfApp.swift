@@ -32,6 +32,10 @@ final class StatusBarController: NSObject, NSApplicationDelegate {
     private var keyMonitor: Any?
     private var localClickMonitor: Any?
     private var globalClickMonitor: Any?
+    private var previewKeyMonitor: Any?
+    private var previewingURL: URL?
+    private var previewOpenedAt: Date?
+    private var previewWatch: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         if quitIfDuplicate() { return }
@@ -72,12 +76,13 @@ final class StatusBarController: NSObject, NSApplicationDelegate {
         let view = ShelfView(store: store, relay: relay)
         hosting = NSHostingController(rootView: view)
         let size = PanelLayout.size(for: store)
-        panel = NSPanel(
+        panel = KeyPanel(
             contentRect: NSRect(origin: .zero, size: size),
             styleMask: [.borderless, .nonactivatingPanel, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
+        panel.becomesKeyOnlyIfNeeded = false
         panel.level = PanelPlacement.level(above: 0)
         panel.isFloatingPanel = true
         panel.hidesOnDeactivate = false
@@ -106,9 +111,7 @@ final class StatusBarController: NSObject, NSApplicationDelegate {
                 self.closePanel()
                 return nil
             }
-            guard event.characters == " ", self.spaceShouldPreview(event) else { return event }
-            guard self.store.openInPreview(nil) else { return nil }
-            self.closePanel()
+            guard self.handleSpace(event) else { return event }
             return nil
         }
         let mask: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown, .leftMouseUp, .rightMouseUp]
@@ -135,25 +138,125 @@ final class StatusBarController: NSObject, NSApplicationDelegate {
         relay.relayout = { [weak self] in
             self?.relayout()
         }
-        relay.close = { [weak self] in
-            self?.closePanel()
+        relay.holdPreview = { [weak self] url in
+            self?.showInPreview(url)
         }
     }
 
-    private func spaceShouldPreview(_ event: NSEvent) -> Bool {
-        if event.modifierFlags.contains(.command) || event.modifierFlags.contains(.option) || event.modifierFlags.contains(.control) {
-            return false
+    private func handleSpace(_ event: NSEvent) -> Bool {
+        let shortcut = event.modifierFlags.contains(.command)
+            || event.modifierFlags.contains(.option)
+            || event.modifierFlags.contains(.control)
+        guard event.keyCode == 49, !shortcut else { return false }
+        let target = previewTarget()
+        if let current = previewingURL, target == nil || target == current {
+            returnFromPreview()
+            return true
         }
-        let responder = panel.firstResponder
-        if responder is NSButton || responder is NSSegmentedControl || responder is NSTextView {
-            return false
-        }
+        guard let target else { return false }
+        showInPreview(target)
         return true
+    }
+
+    private func showInPreview(_ url: URL) {
+        if let current = previewingURL, current != url {
+            store.closePreviewDocument(at: current)
+        }
+        guard store.openInPreview(url) else { return }
+        beginPreviewHold(url)
+        sinkBehindPreview()
+    }
+
+    private func beginPreviewHold(_ url: URL) {
+        previewingURL = url
+        previewOpenedAt = Date()
+        store.selectedURL = url
+        guard previewWatch == nil else { return }
+        let timer = Timer(timeInterval: 0.4, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.checkPreviewClosed() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        previewWatch = timer
+        previewKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            MainActor.assumeIsolated {
+                guard let self, self.previewingURL != nil, !self.panel.isKeyWindow else { return }
+                _ = self.handleSpace(event)
+            }
+        }
+    }
+
+    private func checkPreviewClosed() {
+        guard let url = previewingURL, let opened = previewOpenedAt else { return }
+        if Date().timeIntervalSince(opened) < 1 { return }
+        if previewWindowVisible(url.lastPathComponent) { return }
+        let previewFront = NSWorkspace.shared.frontmostApplication?.bundleIdentifier == "com.apple.Preview"
+        if previewFront, previewHasAnyWindow() { return }
+        endPreviewHold()
+    }
+
+    private func returnFromPreview() {
+        guard let url = previewingURL else { return }
+        store.closePreviewDocument(at: url)
+        if !previewWindowVisible(url.lastPathComponent) {
+            endPreviewHold()
+        }
+    }
+
+    private func endPreviewHold() {
+        let wasPreviewing = previewingURL != nil
+        previewingURL = nil
+        previewOpenedAt = nil
+        previewWatch?.invalidate()
+        previewWatch = nil
+        if let previewKeyMonitor {
+            NSEvent.removeMonitor(previewKeyMonitor)
+            self.previewKeyMonitor = nil
+        }
+        guard wasPreviewing, panel.isVisible else { return }
+        restoreShelf()
+    }
+
+    private func sinkBehindPreview() {
+        panel.level = .normal
+        panel.orderBack(nil)
+    }
+
+    private func restoreShelf() {
+        placePanel()
+        panel.orderFrontRegardless()
+        panel.makeKey()
+    }
+
+    private func previewHasAnyWindow() -> Bool {
+        let options = CGWindowListOption(arrayLiteral: .optionOnScreenOnly, .excludeDesktopElements)
+        guard let info = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else { return true }
+        return info.contains { entry in
+            let owner = entry[kCGWindowOwnerName as String] as? String ?? ""
+            guard owner == "Preview" else { return false }
+            let bounds = entry[kCGWindowBounds as String] as? [String: Any]
+            let width = (bounds?["Width"] as? NSNumber).map { CGFloat(truncating: $0) } ?? 0
+            let height = (bounds?["Height"] as? NSNumber).map { CGFloat(truncating: $0) } ?? 0
+            return width > 80 && height > 80
+        }
+    }
+
+    private func previewWindowVisible(_ filename: String) -> Bool {
+        let options = CGWindowListOption(arrayLiteral: .optionOnScreenOnly, .excludeDesktopElements)
+        guard let info = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else { return true }
+        return info.contains { entry in
+            let owner = entry[kCGWindowOwnerName as String] as? String ?? ""
+            let title = entry[kCGWindowName as String] as? String ?? ""
+            return owner == "Preview" && PreviewWatch.title(title, shows: filename)
+        }
+    }
+
+    private func previewTarget() -> URL? {
+        store.hoveredURL ?? store.selectedURL
     }
 
     private func finishPointer(closeIfOutside: Bool) {
         dragging = false
-        guard closeIfOutside, panel.isVisible else { return }
+        guard closeIfOutside, panel.isVisible, previewingURL == nil else { return }
         if !panel.frame.contains(NSEvent.mouseLocation) {
             closePanel()
         }
@@ -202,6 +305,7 @@ final class StatusBarController: NSObject, NSApplicationDelegate {
             guard let self, self.panel.isVisible else { return }
             self.placePanel()
             self.panel.orderFrontRegardless()
+            self.panel.makeKey()
         }
     }
 
@@ -217,8 +321,10 @@ final class StatusBarController: NSObject, NSApplicationDelegate {
             visible: visible,
             blockers: blockers
         )
-        let highest = MenuBarWindows.highestLevel(excludingPID: ProcessInfo.processInfo.processIdentifier, intersecting: frame)
-        panel.level = PanelPlacement.level(above: highest)
+        if previewingURL == nil {
+            let highest = MenuBarWindows.highestLevel(excludingPID: ProcessInfo.processInfo.processIdentifier, intersecting: frame)
+            panel.level = PanelPlacement.level(above: highest)
+        }
         panel.setFrame(frame, display: true)
         panel.invalidateShadow()
     }
@@ -226,13 +332,14 @@ final class StatusBarController: NSObject, NSApplicationDelegate {
     private func closePanel() {
         guard panel.isVisible else { return }
         panel.orderOut(nil)
+        endPreviewHold()
         statusItem.button?.highlight(false)
         dragging = false
         closedAt = Date()
     }
 
     private func closeIfClickOutside() {
-        guard panel.isVisible, !dragging else { return }
+        guard panel.isVisible, !dragging, previewingURL == nil else { return }
         let point = NSEvent.mouseLocation
         if panel.frame.contains(point) || statusItemHit(point) { return }
         closePanel()
@@ -279,6 +386,11 @@ final class StatusBarController: NSObject, NSApplicationDelegate {
         image.isTemplate = true
         return image
     }
+}
+
+private final class KeyPanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { false }
 }
 
 enum PanelPlacement {

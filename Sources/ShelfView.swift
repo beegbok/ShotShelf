@@ -37,7 +37,7 @@ final class ShelfRelay {
     var suspendAutoClose: () -> Void = {}
     var resumeAutoClose: (Bool) -> Void = { _ in }
     var relayout: () -> Void = {}
-    var close: () -> Void = {}
+    var holdPreview: (URL) -> Void = { _ in }
 }
 
 struct ShelfView: View {
@@ -110,9 +110,13 @@ struct ShelfView: View {
                 ShotCell(
                     item: item,
                     isNewest: item.id == store.visibleItems.first?.id,
+                    isSelected: store.selectedURL == item.url,
                     isCopied: store.copiedURL == item.url,
                     relay: relay,
-                    onCopy: { store.copy(item.url) },
+                    onCopy: {
+                        store.selectedURL = item.url
+                        store.copy(item.url)
+                    },
                     onHover: { hovering in
                         if hovering {
                             store.hoveredURL = item.url
@@ -208,8 +212,8 @@ struct ShelfView: View {
     }
 
     private func openPreview(_ url: URL?) {
-        guard store.openInPreview(url) else { return }
-        relay.close()
+        guard let target = url ?? store.hoveredURL ?? store.visibleItems.first?.url else { return }
+        relay.holdPreview(target)
     }
 
     private func toggleRow(_ title: String, isOn: Binding<Bool>) -> some View {
@@ -227,6 +231,7 @@ struct ShelfView: View {
 private struct ShotCell: View {
     let item: ScreenshotItem
     let isNewest: Bool
+    let isSelected: Bool
     let isCopied: Bool
     let relay: ShelfRelay
     let onCopy: () -> Void
@@ -279,12 +284,12 @@ private struct ShotCell: View {
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .strokeBorder(borderColor, lineWidth: isNewest ? 2 : 1)
+                    .strokeBorder(borderColor, lineWidth: isSelected || isNewest ? 2 : 1)
             }
     }
 
     private var borderColor: Color {
-        if isNewest { return Color.accentColor.opacity(0.9) }
+        if isSelected || isNewest { return Color.accentColor.opacity(0.9) }
         if hovered { return Color.primary.opacity(0.28) }
         return Color.primary.opacity(0.08)
     }

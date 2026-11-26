@@ -70,6 +70,7 @@ enum ScreenshotFilterTests {
         }
 
         checkPlacement()
+        checkPreviewTitles()
         print("ScreenshotFilter tests passed")
     }
 
@@ -93,6 +94,14 @@ enum ScreenshotFilterTests {
         let shorter = PanelGeometry.resized(keepingTopOf: taller, to: CGSize(width: 372, height: 300))
         assert(abs(shorter.maxY - before.maxY) < 0.1)
         assert(abs(shorter.height - 300) < 0.1)
+    }
+
+    private static func checkPreviewTitles() {
+        let name = "Screenshot 2026-11-26 at 1.48.00 pm.png"
+        assert(PreviewWatch.title(name, shows: name))
+        assert(PreviewWatch.title("Screenshot 2026-11-26 at 1.48.00 pm", shows: name))
+        assert(!PreviewWatch.title("Screenshot 2026-11-26 at 1.48.00 pm (2)", shows: name))
+        assert(!PreviewWatch.title("notes.png", shows: name))
     }
 
     private static func write(_ name: String, modified: Date, in directory: URL) {

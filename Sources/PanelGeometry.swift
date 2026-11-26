@@ -56,3 +56,13 @@ enum PanelGeometry {
         min(max(value, lower), max(lower, upper))
     }
 }
+
+enum PreviewWatch {
+    /// Preview's window title is the file name, with or without its extension.
+    static func title(_ title: String, shows filename: String) -> Bool {
+        if title == filename { return true }
+        guard let dot = filename.lastIndex(of: ".") else { return false }
+        let stem = filename[..<dot]
+        return !stem.isEmpty && title == stem
+    }
+}
