@@ -55,6 +55,11 @@ fi
 
 codesign --force --sign - --identifier app.shotshelf.mac "$APP"
 
+ZIP="$ROOT/build/ShotShelf.zip"
+rm -f "$ZIP"
+ditto -c -k --norsrc --keepParent "$APP" "$ZIP"
+echo "Packaged $ZIP"
+
 DEST="$HOME/Applications/ShotShelf.app"
 killall ShotShelf 2>/dev/null || true
 rm -rf "$DEST"

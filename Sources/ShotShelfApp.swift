@@ -226,6 +226,10 @@ final class StatusBarController: NSObject, NSApplicationDelegate {
         menu.addItem(item("Open Screenshot Folder", action: #selector(openFolderFromMenu)))
         menu.addItem(.separator())
         menu.addItem(item("Quit ShotShelf", action: #selector(quit)))
+        menu.addItem(.separator())
+        let credit = NSMenuItem(title: "Created by DLP", action: nil, keyEquivalent: "")
+        credit.isEnabled = false
+        menu.addItem(credit)
         menu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.minY - 4), in: button)
     }
 

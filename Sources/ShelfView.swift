@@ -20,7 +20,7 @@ enum PanelLayout {
 
     private static func height(for store: ScreenshotStore) -> CGFloat {
         let grid = gridHeight(for: store)
-        return 12 + 78 + 8 + grid + 8 + 104 + 12
+        return 12 + 78 + 8 + grid + 8 + 124 + 12
     }
 
     private static func gridHeight(for store: ScreenshotStore) -> CGFloat {
@@ -163,6 +163,10 @@ struct ShelfView: View {
             .buttonStyle(.borderless)
             .font(.caption)
             .foregroundStyle(.secondary)
+            Text("Created by DLP")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .center)
         }
     }
 
