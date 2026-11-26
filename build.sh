@@ -53,7 +53,13 @@ if swift scripts/make-icon.swift "$ICON_PNG"; then
   iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
 fi
 
-codesign --force --sign - --identifier app.shotshelf.mac "$APP"
+SIGN_ID="Developer ID Application: Dage Electronics Pty Ltd (3UU8PXWLK5)"
+if security find-identity -v -p codesigning | grep -Fq "$SIGN_ID"; then
+  codesign --force --options runtime --timestamp --sign "$SIGN_ID" "$APP"
+else
+  echo "Developer ID certificate not in the keychain; this copy will only run on this Mac."
+  codesign --force --sign - --identifier app.shotshelf.mac "$APP"
+fi
 
 ZIP="$ROOT/build/ShotShelf.zip"
 rm -f "$ZIP"
@@ -64,5 +70,4 @@ DEST="$HOME/Applications/ShotShelf.app"
 killall ShotShelf 2>/dev/null || true
 rm -rf "$DEST"
 ditto "$APP" "$DEST"
-codesign --force --sign - --identifier app.shotshelf.mac "$DEST"
 echo "Installed $DEST"

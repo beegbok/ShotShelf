@@ -8,9 +8,7 @@ Created by DLP.
 
 [ShotShelf 1.0 for Mac](https://github.com/beegbok/ShotShelf/releases/latest/download/ShotShelf.zip)
 
-Needs an Apple silicon Mac on macOS 14 or later. After you unzip it, move `ShotShelf.app` to Applications.
-
-macOS will refuse the first open, because this build is not notarized. Right-click the app, choose Open, then Open again. If that still fails, go to System Settings → Privacy & Security and choose Open Anyway.
+Needs an Apple silicon Mac on macOS 14 or later. Unzip it and move `ShotShelf.app` to Applications, then open it.
 
 ShotShelf lives in the menu bar, not the Dock. Click the photo icon. The first time it reads your Desktop it will ask for folder access.
 
