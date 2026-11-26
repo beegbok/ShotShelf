@@ -62,7 +62,7 @@ final class StatusBarController: NSObject, NSApplicationDelegate {
         guard let button = statusItem.button else { return }
         button.image = menuImage(ScreenshotStore.menuSymbol)
         button.imagePosition = .imageOnly
-        button.toolTip = "ShotShelf"
+        button.toolTip = "SC Pro"
         button.target = self
         button.action = #selector(statusItemClicked)
         button.sendAction(on: [.leftMouseUp, .rightMouseUp])
@@ -98,8 +98,14 @@ final class StatusBarController: NSObject, NSApplicationDelegate {
 
     private func installDismissMonitors() {
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard event.keyCode == 53, self?.panel.isVisible == true else { return event }
-            self?.closePanel()
+            guard let self, self.panel.isVisible else { return event }
+            if event.keyCode == 53 {
+                self.closePanel()
+                return nil
+            }
+            guard event.characters == " ", self.spaceShouldPreview(event) else { return event }
+            guard self.store.openInPreview(nil) else { return nil }
+            self.closePanel()
             return nil
         }
         let mask: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown]
@@ -122,6 +128,20 @@ final class StatusBarController: NSObject, NSApplicationDelegate {
         relay.relayout = { [weak self] in
             self?.relayout()
         }
+        relay.close = { [weak self] in
+            self?.closePanel()
+        }
+    }
+
+    private func spaceShouldPreview(_ event: NSEvent) -> Bool {
+        if event.modifierFlags.contains(.command) || event.modifierFlags.contains(.option) || event.modifierFlags.contains(.control) {
+            return false
+        }
+        let responder = panel.firstResponder
+        if responder is NSButton || responder is NSSegmentedControl || responder is NSTextView {
+            return false
+        }
+        return true
     }
 
     private func finishPointer(closeIfOutside: Bool) {
@@ -222,10 +242,10 @@ final class StatusBarController: NSObject, NSApplicationDelegate {
     private func showMenu() {
         guard let button = statusItem.button else { return }
         let menu = NSMenu()
-        menu.addItem(item("Open ShotShelf", action: #selector(openPopoverFromMenu)))
+        menu.addItem(item("Open SC Pro", action: #selector(openPopoverFromMenu)))
         menu.addItem(item("Open Screenshot Folder", action: #selector(openFolderFromMenu)))
         menu.addItem(.separator())
-        menu.addItem(item("Quit ShotShelf", action: #selector(quit)))
+        menu.addItem(item("Quit SC Pro", action: #selector(quit)))
         menu.addItem(.separator())
         let credit = NSMenuItem(title: "Created by DLProjects", action: nil, keyEquivalent: "")
         credit.isEnabled = false
@@ -249,7 +269,7 @@ final class StatusBarController: NSObject, NSApplicationDelegate {
 
     private func menuImage(_ symbol: String) -> NSImage? {
         let config = NSImage.SymbolConfiguration(pointSize: 15, weight: .medium)
-        guard let base = NSImage(systemSymbolName: symbol, accessibilityDescription: "ShotShelf"),
+        guard let base = NSImage(systemSymbolName: symbol, accessibilityDescription: "SC Pro"),
               let image = base.withSymbolConfiguration(config) else { return nil }
         image.isTemplate = true
         return image

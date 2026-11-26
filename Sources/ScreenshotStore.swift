@@ -27,6 +27,7 @@ final class ScreenshotStore {
     private(set) var blockedMessage: String?
     private(set) var statusLine = idleStatus
     private(set) var copiedURL: URL?
+    var hoveredURL: URL?
     private(set) var loginEnabled = false
 
     var visibleCount: Int = 6 {
@@ -151,6 +152,20 @@ final class ScreenshotStore {
         NSWorkspace.shared.open(folderURL)
     }
 
+    @discardableResult
+    func openInPreview(_ url: URL?) -> Bool {
+        let target = url ?? hoveredURL ?? visibleItems.first?.url
+        guard let target, FileManager.default.fileExists(atPath: target.path) else { return false }
+        let config = NSWorkspace.OpenConfiguration()
+        config.activates = true
+        if let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Preview") {
+            NSWorkspace.shared.open([target], withApplicationAt: appURL, configuration: config)
+        } else {
+            NSWorkspace.shared.open(target)
+        }
+        return true
+    }
+
     func openPrivacySettings() {
         let candidates = [
             "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_FilesAndFolders",
@@ -171,7 +186,7 @@ final class ScreenshotStore {
             }
             UserDefaults.standard.set(true, forKey: Key.loginItemSet)
         } catch {
-            fail("Open at login failed. Keep ShotShelf in Applications, then try again.")
+            fail("Open at login failed. Keep SC Pro in Applications, then try again.")
         }
         refreshLoginState()
     }

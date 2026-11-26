@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>ShotShelf</string>
+	<string>SC Pro</string>
 	<key>CFBundleExecutable</key>
 	<string>ShotShelf</string>
 	<key>CFBundleIconFile</key>
@@ -15,7 +15,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>ShotShelf</string>
+	<string>SC Pro</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>NSHumanReadableCopyright</key>
@@ -33,10 +33,10 @@
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSDesktopFolderUsageDescription</key>
-	<string>ShotShelf reads your screenshot folder so you can drag recent shots into other apps.</string>
+	<string>SC Pro reads your screenshot folder so you can drag recent shots into other apps.</string>
 	<key>NSDocumentsFolderUsageDescription</key>
-	<string>ShotShelf reads screenshots if you save them in Documents.</string>
+	<string>SC Pro reads screenshots if you save them in Documents.</string>
 	<key>NSDownloadsFolderUsageDescription</key>
-	<string>ShotShelf reads screenshots if you save them in Downloads.</string>
+	<string>SC Pro reads screenshots if you save them in Downloads.</string>
 </dict>
 </plist>

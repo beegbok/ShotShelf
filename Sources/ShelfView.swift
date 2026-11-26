@@ -37,6 +37,7 @@ final class ShelfRelay {
     var suspendAutoClose: () -> Void = {}
     var resumeAutoClose: (Bool) -> Void = { _ in }
     var relayout: () -> Void = {}
+    var close: () -> Void = {}
 }
 
 struct ShelfView: View {
@@ -62,7 +63,7 @@ struct ShelfView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("ShotShelf")
+                Text("SC Pro")
                     .font(.headline)
                 Text(store.statusLine)
                     .font(.caption)
@@ -111,7 +112,15 @@ struct ShelfView: View {
                     isNewest: item.id == store.visibleItems.first?.id,
                     isCopied: store.copiedURL == item.url,
                     relay: relay,
-                    onCopy: { store.copy(item.url) }
+                    onCopy: { store.copy(item.url) },
+                    onHover: { hovering in
+                        if hovering {
+                            store.hoveredURL = item.url
+                        } else if store.hoveredURL == item.url {
+                            store.hoveredURL = nil
+                        }
+                    },
+                    onPreview: { openPreview(item.url) }
                 )
             }
         }
@@ -180,6 +189,8 @@ struct ShelfView: View {
             HStack {
                 Button(store.folderButtonTitle) { store.openFolder() }
                 Spacer()
+                Button("Preview") { openPreview(nil) }
+                    .disabled(store.visibleItems.isEmpty)
                 Button("Quit") { NSApp.terminate(nil) }
             }
             .buttonStyle(.borderless)
@@ -190,6 +201,11 @@ struct ShelfView: View {
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .center)
         }
+    }
+
+    private func openPreview(_ url: URL?) {
+        guard store.openInPreview(url) else { return }
+        relay.close()
     }
 
     private func toggleRow(_ title: String, isOn: Binding<Bool>) -> some View {
@@ -210,6 +226,8 @@ private struct ShotCell: View {
     let isCopied: Bool
     let relay: ShelfRelay
     let onCopy: () -> Void
+    let onHover: (Bool) -> Void
+    let onPreview: () -> Void
     @State private var image: NSImage?
     @State private var hovered = false
 
@@ -222,7 +240,11 @@ private struct ShotCell: View {
                     url: item.url,
                     preview: image,
                     onClick: onCopy,
-                    onHover: { hovered = $0 },
+                    onHover: { hovering in
+                        hovered = hovering
+                        onHover(hovering)
+                    },
+                    onPreview: onPreview,
                     onSuspend: { relay.suspendAutoClose() },
                     onResume: { relay.resumeAutoClose($0) }
                 )
@@ -324,6 +346,7 @@ private struct FileDragSurface: NSViewRepresentable {
     let preview: NSImage?
     let onClick: () -> Void
     let onHover: (Bool) -> Void
+    let onPreview: () -> Void
     let onSuspend: () -> Void
     let onResume: (Bool) -> Void
 
@@ -342,6 +365,7 @@ private struct FileDragSurface: NSViewRepresentable {
         view.preview = preview
         view.onClick = onClick
         view.onHover = onHover
+        view.onPreview = onPreview
         view.onSuspend = onSuspend
         view.onResume = onResume
     }
@@ -352,6 +376,7 @@ private final class DragSourceView: NSView, NSDraggingSource {
     var preview: NSImage?
     var onClick: () -> Void = {}
     var onHover: (Bool) -> Void = { _ in }
+    var onPreview: () -> Void = {}
     var onSuspend: () -> Void = {}
     var onResume: (Bool) -> Void = { _ in }
 
@@ -425,12 +450,16 @@ private final class DragSourceView: NSView, NSDraggingSource {
         let menu = NSMenu()
         let copy = menu.addItem(withTitle: "Copy", action: #selector(copyFromMenu), keyEquivalent: "")
         copy.target = self
+        let preview = menu.addItem(withTitle: "Open in Preview", action: #selector(openInPreview), keyEquivalent: "")
+        preview.target = self
         let reveal = menu.addItem(withTitle: "Show in Finder", action: #selector(revealInFinder), keyEquivalent: "")
         reveal.target = self
         menu.popUp(positioning: nil, at: convert(event.locationInWindow, from: nil), in: self)
     }
 
     @objc private func copyFromMenu() { onClick() }
+
+    @objc private func openInPreview() { onPreview() }
 
     @objc private func revealInFinder() {
         guard let url else { return }

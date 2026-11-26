@@ -119,7 +119,7 @@ enum ScreenshotFilter {
     private static func message(for error: Error, directory: URL) -> String {
         let nsError = error as NSError
         if isPermissionError(nsError) {
-            return "Allow ShotShelf to read \(directory.lastPathComponent) in Privacy settings."
+            return "Allow SC Pro to read \(directory.lastPathComponent) in Privacy settings."
         }
         return "Couldn't read \(directory.lastPathComponent)."
     }

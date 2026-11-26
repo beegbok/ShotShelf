@@ -3,12 +3,12 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
-APP="$ROOT/build/ShotShelf.app"
+APP="$ROOT/build/SC Pro.app"
 ZIP="$ROOT/build/ShotShelf.zip"
 PROFILE="${NOTARY_PROFILE:-shotshelf}"
 
 if [[ ! -d "$APP" ]]; then
-  echo "Build ShotShelf first: ./build.sh" >&2
+  echo "Build SC Pro first: ./build.sh" >&2
   exit 1
 fi
 

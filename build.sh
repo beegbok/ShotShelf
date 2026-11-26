@@ -13,7 +13,7 @@ swiftc -parse-as-library -sdk "$SDK" -target "$TARGET" \
 /tmp/shotshelf-filter-test
 
 echo "Building…"
-APP="$ROOT/build/ShotShelf.app"
+APP="$ROOT/build/SC Pro.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
@@ -66,8 +66,8 @@ rm -f "$ZIP"
 ditto -c -k --norsrc --keepParent "$APP" "$ZIP"
 echo "Packaged $ZIP"
 
-DEST="$HOME/Applications/ShotShelf.app"
+DEST="$HOME/Applications/SC Pro.app"
 killall ShotShelf 2>/dev/null || true
-rm -rf "$DEST"
+rm -rf "$HOME/Applications/ShotShelf.app" "$DEST"
 ditto "$APP" "$DEST"
 echo "Installed $DEST"
